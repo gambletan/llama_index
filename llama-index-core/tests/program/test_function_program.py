@@ -13,6 +13,7 @@ from llama_index.core.tools.types import BaseTool
 from llama_index.core.chat_engine.types import AgentChatResponse
 from llama_index.core.tools import ToolOutput
 from llama_index.core.program import FunctionCallingProgram
+from llama_index.core.program.function_program import get_function_tool
 
 
 class MockSong(BaseModel):
@@ -187,3 +188,50 @@ async def test_async_function_program_forwards_tool_choice() -> None:
     await llm_program.acall(topic="songs")
     assert llm.last_apredict_kwargs is not None
     assert llm.last_apredict_kwargs["tool_choice"] == {"type": "any"}
+
+
+class MockNames(BaseModel):
+    """A list of names."""
+
+    names: List[str]
+
+
+def test_get_function_tool_single_field_non_dict_arg() -> None:
+    """Test that get_function_tool handles single-field models when the
+    positional arg is not a dict (e.g. a list).
+
+    When call_tool() encounters a single-property schema it unwraps the
+    value and passes it positionally.  If the value is not a dict (e.g.
+    a list), model_fn must re-wrap it into the correct kwarg so the
+    Pydantic model is instantiated properly.
+
+    Regression test for https://github.com/run-llama/llama_index/issues/21024
+    """
+    tool = get_function_tool(MockNames)
+
+    # Simulate what call_tool does: unwrap single-field value and pass positionally
+    names_list = ["Alice", "Bob", "Charlie"]
+    result = tool(names_list)
+
+    assert isinstance(result.raw_output, MockNames)
+    assert result.raw_output.names == ["Alice", "Bob", "Charlie"]
+
+
+def test_get_function_tool_single_field_dict_arg() -> None:
+    """Test that get_function_tool still handles a dict arg for single-field models."""
+    tool = get_function_tool(MockNames)
+
+    result = tool({"names": ["Alice", "Bob"]})
+
+    assert isinstance(result.raw_output, MockNames)
+    assert result.raw_output.names == ["Alice", "Bob"]
+
+
+def test_get_function_tool_single_field_kwargs() -> None:
+    """Test that get_function_tool works with kwargs for single-field models."""
+    tool = get_function_tool(MockNames)
+
+    result = tool(names=["Alice", "Bob"])
+
+    assert isinstance(result.raw_output, MockNames)
+    assert result.raw_output.names == ["Alice", "Bob"]
