@@ -42,8 +42,17 @@ def get_function_tool(output_cls: Type[Model]) -> FunctionTool:
     # so instead we'll directly provide it in the fn_schema in the ToolMetadata
     def model_fn(*args: Any, **kwargs: Any) -> Model:
         """Model function."""
-        if len(args) == 1 and isinstance(args[0], dict) and not kwargs:
-            kwargs = args[0]
+        if len(args) == 1 and not kwargs:
+            if isinstance(args[0], dict):
+                kwargs = args[0]
+            else:
+                # Single-field schema: the value was unwrapped from its key
+                # by call_tool's single-property optimisation.  Wrap it back
+                # into the expected kwarg so the model gets the value.
+                properties = schema.get("properties", {})
+                if len(properties) == 1:
+                    field_name = next(iter(properties))
+                    kwargs = {field_name: args[0]}
         return output_cls(**kwargs)
 
     return FunctionTool.from_defaults(
